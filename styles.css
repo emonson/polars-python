@@ -1,0 +1,48 @@
+.reveal table {
+    font-size: 0.5em;
+}
+
+.reveal .custom6040 > div.column:first-child {
+    width: 65%;
+    font-size: 90%;
+}
+.reveal .custom6040 > div.column:not(:first-child) {
+    width: 35%;
+}
+
+.reveal .bigcode {
+    font-size: 80% !important;
+}
+
+.reveal .slides pre code {
+    font-size: 1.3em;
+}
+
+.reveal .smallcode {
+    font-size: 75% !important;
+}
+
+
+/* This also works without the specificity of the above
+To put an !important on the font-size
+which makes sure it's the highest priority
+.bigcodeblock pre code {
+    font-size: 120% !important;
+}
+*/
+
+.relative-container {
+  position: relative;
+}
+
+.highlighted-pat-col {
+  position: absolute;
+  top: 30px;    /* Adjust position */
+  left: 595px;   /* Adjust position */
+  width: 47px;  /* Adjust size */
+  height: 300px;  /* Adjust size */
+  border: 3px solid orange;
+  background: rgba(255, 255, 0, 0.1);
+  pointer-events: none;
+  z-index: 10;
+}

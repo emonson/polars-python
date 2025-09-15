@@ -1,0 +1,944 @@
+---
+title: Visualize combined student schedules for each advisor
+subtitle: Solving problems with Polars and Altair
+format:
+    revealjs: 
+        slide-number: true
+        preview-links: auto
+        css: styles.css
+embed-resources: true
+width: 1050
+scrollable: true
+center-title-slide: false
+---
+
+# Advisor Student Heatmaps
+
+Faculty need a quick way of summarizing busy and free times for the combination of students they advise
+
+
+```{python}
+#| output: false
+
+import polars as pl
+import altair as alt
+
+alt.renderers.enable('svg')
+```
+
+## Where are we headed? {.smaller}
+
+:::: {.columns .custom6040}
+::: {.column}
+::: {.fragment}
+**Students' schedules**
+
+![](images/StudentScheduleSample.png){width="700"}
+:::
+::: {.fragment}
+**Students' advisors**
+
+![](images/StudentAdvisorSample.png){width="400"}
+:::
+:::
+
+::: {.column .fragment}
+**All schedules/advisor**
+
+![](images/TimeGridSample.png){width="300"}
+:::
+::::
+
+## Preview student schedules {.smaller}
+
+- Polars only supports UTF-8 text encoding for fast reads
+- Not doing a lazy read/DataFrame here since the files aren't big
+- "Mtg Start" and "Mtg End" look like times but are strings
+- **If the IDs are only integers, force them to be read as a strings to not lose leading zeros**
+
+```{python}
+#| echo: True
+
+pl.read_csv('./data/students_deidentified.csv', n_rows=5)
+```
+
+## Full CSV read w/time conversion {.smaller}
+
+```{python}
+#| echo: True
+
+students_df = (pl.read_csv('./data/students_deidentified.csv')
+                .with_columns(start=pl.col('Mtg Start').str.to_time('%r'),
+                                end=pl.col('Mtg End').str.to_time('%r'))
+                .drop(pl.col('Mtg Start','Mtg End'))
+           )
+print('Full DataFrame shape:', students_df.shape)
+students_df.head(10)
+```
+
+## Method chaining {.smaller}
+
+```{.python .bigcode code-line-numbers="1,5|"}
+(pl.read_csv('./data/students_deidentified.csv')
+    .with_columns(start=pl.col('Mtg Start').str.to_time('%r'),
+                  end=pl.col('Mtg End').str.to_time('%r'))
+    .drop(pl.col('Mtg Start','Mtg End'))
+)
+```
+
+- Just chaining further processing onto `read_csv()`
+- (...code...) alows breaks at dots
+
+## Adding new columns {.smaller}
+
+```{.python .bigcode code-line-numbers="2-3"}
+(pl.read_csv('./data/students_deidentified.csv')
+    .with_columns(start=pl.col('Mtg Start').str.to_time('%r'),
+                  end=pl.col('Mtg End').str.to_time('%r'))
+    .drop(pl.col('Mtg Start','Mtg End'))
+)
+```
+- `.with_columns()` – adds new or modifies existing columns
+
+## Naming your new columns {.smaller}
+
+```{.python .bigcode code-line-numbers="2-3"}
+(pl.read_csv('./data/students_deidentified.csv')
+    .with_columns(pl.col('Mtg Start').str.to_time('%r').alias('start'),
+                  end=pl.col('Mtg End').str.to_time('%r'))
+    .drop(pl.col('Mtg Start','Mtg End'))
+)
+```
+
+Two format options:
+
+> `expression.alias('name')`\
+> *or* \
+> `name=expression`
+
+- Second preferred for readability
+- *Note: Python doesn't allow "positional" arguments after "keyword" arguments*, so can't use `.alias()` after `name=`
+
+## Converting strings to times {.smaller}
+
+```{.python .bigcode code-line-numbers="2-3"}
+(pl.read_csv('./data/students_deidentified.csv')
+    .with_columns(start=pl.col('Mtg Start').str.to_time('%r'),
+                  end=pl.col('Mtg End').str.to_time('%r'))
+    .drop(pl.col('Mtg Start','Mtg End'))
+)
+```
+
+- `.str.to_time()` [[format options documentation](https://docs.rs/chrono/latest/chrono/format/strftime/index.html)] 
+- `%r` is 12-hr time with AM/PM
+
+## Dropping unnecessary columns {.smaller}
+
+```{.python .bigcode code-line-numbers="4"}
+(pl.read_csv('./data/students_deidentified.csv')
+    .with_columns(start=pl.col('Mtg Start').str.to_time('%r'),
+                  end=pl.col('Mtg End').str.to_time('%r'))
+    .drop(pl.col('Mtg Start','Mtg End'))
+)
+```
+- `.drop()` – only drops columns, unlike Pandas
+
+## Existing column names {.smaller}
+
+```{.python .bigcode code-line-numbers="4"}
+(pl.read_csv('./data/students_deidentified.csv')
+    .with_columns(start=pl.col('Mtg Start').str.to_time('%r'),
+                  end=pl.col('Mtg End').str.to_time('%r'))
+    .drop(pl.col('Mtg Start','Mtg End'))
+)
+```
+
+Two format options:
+
+> `pl.col('name')` <- *Polars expression*\
+> *or* \
+> `'name'` <- *plain string shortcut*
+
+- First more flexible – the basis for building complex expressions
+- First necessary for lazy evaluation, optimization, and parallel execution
+
+## Read advisors DataFrame {.smaller}
+
+```{python}
+#| echo: True
+
+advisors_df = pl.read_csv('./data/advisors_deidentified.csv')
+advisors_df
+```
+
+## JOIN students and advisors {.smaller}
+
+- StudentName is in both DataFrames so can drop one of them
+- Filling null AdvisorName with placeholder string
+
+```{python}
+#| echo: True
+#| code-line-numbers: "2|3|4|"
+#| output-location: fragment
+
+students_advisors_df = (
+    students_df.join(advisors_df, on='StudentID', how='left')
+          .drop(pl.col('StudentName_right'))
+          .with_columns(pl.col('AdvisorName').fill_null(pl.lit('No Advisor')))
+         )
+students_advisors_df.sample(10)
+```
+
+## Some students have no advisor {.smaller}
+
+```{python}
+#| echo: True
+
+(students_advisors_df
+ .filter(pl.col('AdvisorName') == "No Advisor")
+ .select(pl.col('StudentID','StudentName'))
+ .unique()
+)
+```
+
+## Filter returns subset of rows {.smaller}
+
+```{.python .bigcode code-line-numbers="2"}
+(students_advisors_df
+ .filter(pl.col('AdvisorName') == "No Advisor")
+ .select(pl.col('StudentID','StudentName'))
+ .unique()
+)
+```
+
+:::: {.columns}
+::: {.column}
+**`.filter()`**
+
+![](images/filter_ppdg_1101){width="450"}
+:::
+
+::: {.column}
+:::
+::::
+
+::: {.footer}
+Images: Janssens, J., & Nieuwdorp, T. (2025). Python Polars: The Definitive Guide. O'Reilly Media.
+:::
+
+## Select returns subset of columns {.smaller}
+
+```{.python .bigcode code-line-numbers="3"}
+(students_advisors_df
+ .filter(pl.col('AdvisorName') == "No Advisor")
+ .select(pl.col('StudentID','StudentName'))
+ .unique()
+)
+```
+
+:::: {.columns}
+::: {.column}
+**`.filter()`**
+
+![](images/filter_ppdg_1101.png){width="450"}
+:::
+
+::: {.column}
+**`.select()`**
+
+![](images/select_ppdg_1001.png){width="400"}
+:::
+::::
+
+::: {.footer}
+Images: Janssens, J., & Nieuwdorp, T. (2025). Python Polars: The Definitive Guide. O'Reilly Media.
+:::
+
+## Unique removes repeated rows {.smaller}
+
+```{.python .bigcode}
+(students_advisors_df
+ .filter(pl.col('AdvisorName') == "No Advisor")
+ .select(pl.col('StudentID','StudentName'))
+ .unique()
+)
+```
+
+```{python}
+#| echo: false
+(students_advisors_df
+ .filter(pl.col('AdvisorName') == "No Advisor")
+ .select(pl.col('StudentID','StudentName'))
+ .unique()
+)
+```
+
+## Some classes have no start time {.smaller}
+
+```{python}
+#| echo: True
+(students_advisors_df
+ .filter(pl.col('start').is_null())
+ .group_by(pl.col('Subject','Descr'))
+ .agg(count = pl.col('StudentID').count())
+ .sort('count', descending=True)
+)
+```
+
+## Filter to null start time {.smaller}
+
+```{.python .bigcode code-line-numbers="2"}
+(students_advisors_df
+ .filter(pl.col('start').is_null())
+ .group_by(pl.col('Subject','Descr'))
+ .agg(count = pl.col('StudentID').count())
+ .sort('count', descending=True)
+)
+```
+
+- Remember, `.filter()` lets through what is `True`
+
+## Group by Subject & Description {.smaller}
+
+```{.python .bigcode code-line-numbers="3"}
+(students_advisors_df
+ .filter(pl.col('start').is_null())
+ .group_by(pl.col('Subject','Descr'))
+ .agg(count = pl.col('StudentID').count())
+ .sort('count', descending=True)
+)
+```
+
+- Get a separate group for each unique combination of the two
+- Unlike Pandas, `.group_by()` returns grouping variables as normal columns
+
+## Aggregate by count of ID {.smaller}
+
+```{.python .bigcode code-line-numbers="4"}
+(students_advisors_df
+ .filter(pl.col('start').is_null())
+ .group_by(pl.col('Subject','Descr'))
+ .agg(count = pl.col('StudentID').count())
+ .sort('count', descending=True)
+)
+```
+
+- Perform this aggregation on each group
+- Could put more expressions in `.agg()` separated by commas
+
+## Sort by count, descending {.smaller}
+
+```{.python .bigcode code-line-numbers="5"}
+(students_advisors_df
+ .filter(pl.col('start').is_null())
+ .group_by(pl.col('Subject','Descr'))
+ .agg(count = pl.col('StudentID').count())
+ .sort('count', descending=True)
+)
+```
+
+- Ascending sort order is the default
+- *Note: Pandas is opposite for descending: `ascending=False`*
+
+<!-- ## Dealing with days of the week {.smaller}
+
+::: {.relative-container}
+```{python}
+students_advisors_df.head(10)
+```
+::: {.highlighted-pat-col}
+:::
+:::
+
+- Need to spell out days of the week for the vis
+- With one day per row in the DataFrame -->
+
+## Dealing with days of the week {.smaller}
+
+```{python}
+from great_tables import loc, style
+
+(students_advisors_df.head(10).style
+    .tab_style(
+        style=[style.text(weight='bold'), style.fill("#FCF7E5")],
+        locations=loc.body(columns="Pat")
+    )
+)
+```
+
+- Need to spell out days of the week for the vis
+- One day per row in the DataFrame
+
+## Aside: styling with `great_tables` {.smaller}
+
+```{python}
+#| echo: true
+
+from great_tables import loc, style
+
+(students_advisors_df.head(6).style
+    .tab_style(
+        style=[style.text(weight='bold'), style.fill("#FCF7E5")],
+        locations=loc.body(columns="Pat")
+    )
+)
+```
+
+::: {.footer}
+Styling docs: [https://docs.pola.rs/user-guide/misc/styling/]()
+:::
+
+## Explicitly define day lookup patterns {.smaller}
+
+- Decide whether you want the *full* or *abbreviated* forms of the weekdays in the vis
+
+```{python}
+#| echo: true
+
+days_version = "Abbreviation"
+# days_version = "Full"
+
+classdays_abbrev_dict = {'TTH':['Tues','Thurs'], 
+                  'MW':['Mon','Wed'], 
+                  'MTW':['Mon','Tues','Wed'],
+                  'MTTH':['Mon','Tues','Thurs'],
+                  'M':['Mon'], 
+                  'WF':['Wed','Fri'], 
+                  'F':['Fri'], 
+                  'TH':['Thurs'], 
+                  'MWF':['Mon','Wed','Fri'], 
+                  'MTH':['Mon','Thurs'], 
+                  'MTWF':['Mon','Tues','Wed','Fri'], 
+                  'MF':['Mon','Fri'], 
+                  'M-TH':['Mon','Tues','Wed','Thurs'],
+                  'M-F':['Mon','Tues','Wed','Thurs','Fri'],
+                  'T':['Tues'], 
+                  'MT':['Mon','Tues'], 
+                  'W':['Wed'],
+                  'TF':['Tues','Fri']}
+
+classdays_full_dict = {'TTH':['Tuesday','Thursday'], 
+                  'MW':['Monday','Wednesday'], 
+                  'MTW':['Monday','Tuesday','Wednesday'],
+                  'MTTH':['Monday','Tuesday','Thursday'],
+                  'M':['Monday'], 
+                  'WF':['Wednesday','Friday'], 
+                  'F':['Friday'], 
+                  'TH':['Thursday'], 
+                  'MWF':['Monday','Wednesday','Friday'], 
+                  'MTH':['Monday','Thursday'], 
+                  'MTWF':['Monday','Tuesday','Wednesday','Friday'], 
+                  'MF':['Monday','Friday'], 
+                  'M-TH':['Monday','Tuesday','Wednesday','Thursday'],
+                  'M-F':['Monday','Tuesday','Wednesday','Thursday','Friday'],
+                  'T':['Tuesday'], 
+                  'MT':['Monday','Tuesday'], 
+                  'W':['Wednesday'],
+                  'TF':['Tuesday','Friday']}
+
+if days_version.lower() == "abbreviation":
+    classdays_dict = classdays_abbrev_dict
+else:
+    classdays_dict = classdays_full_dict
+```
+
+## Parsing for day pattern lookups {.smaller}
+
+- This version adapts to the patterns present (better for new data but not more readable)
+
+```{python}
+#| echo: false
+import pandas as pd
+import re
+```
+
+```{python}
+#| echo: true
+#| output-location: slide
+# days_version = "full"
+days_version = "abbreviation"
+
+days_letters = ['M', 'T', 'W', 'H', 'F']
+days_list_full = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+days_list_abbrev = ['Mon', 'Tues', 'Wed', 'Thurs', 'Fri']
+
+# Using Pandas Series since you can use slice notation on them for day ranges with dashes
+if days_version.lower() == "full":
+    classdays_series = pd.Series(dict(zip(days_letters, days_list_full)))
+else:
+    classdays_series = pd.Series(dict(zip(days_letters, days_list_abbrev)))
+
+classdays_dict = {}
+for day_pattern in students_advisors_df.get_column('Pat').unique().to_list():
+    if day_pattern is not None:                             # There are some null day patterns
+        day_pattern_noTH = day_pattern.replace('TH','H')    # Thurs only two-character abbrev
+        if '-' in day_pattern_noTH:
+            # Handle patterns like 'M-W', 'T-H', etc.
+            match = re.search(r'([A-Z])-([A-Z])', day_pattern_noTH)
+            classdays_dict[day_pattern] = classdays_series[slice(match.group(1),match.group(2))].to_list()
+        else:
+            # Handle single day patterns like 'MWF', 'TTH', etc.
+            classdays_dict[day_pattern] = classdays_series[list(day_pattern_noTH)].to_list()
+
+
+classdays_dict
+```
+
+## Test the day range replacements {.smaller}
+
+```{python}
+#| echo: true
+
+students_advisors_df.select(pl.col('Pat'), 
+                            weekday=pl.col('Pat').replace_strict(classdays_dict))
+```
+
+## Replace and explode into rows {.smaller}
+
+- Other columns get repeated
+
+```{python}
+#| echo: true
+#| code-line-numbers: "3"
+
+sa_w_weekdays = (students_advisors_df
+           .with_columns(weekday=pl.col('Pat').replace_strict(classdays_dict))
+           .explode('weekday')
+         )
+sa_w_weekdays.select(pl.col('StudentName','Descr','Pat','weekday'))
+```
+
+## Test `time_ranges()` {.smaller}
+
+- Make list of times between "start" and "end"
+- Decided to set `closed='left'` so don't include the end time in list
+
+```{python}
+#| echo: true
+
+(sa_w_weekdays
+ .with_columns(Time=pl.time_ranges("start", "end", interval='5m', closed='left'))
+ .select(pl.col('StudentName','weekday','start','end','Time'))
+)
+```
+
+## Explode time ranges into rows {.smaller}
+
+- Make list of times between "start" and "end"
+- Decided to set `closed='left'` so don't include the end time in list
+
+```{python}
+#| echo: true
+
+(sa_w_weekdays
+ .with_columns(Time=pl.time_ranges("start", "end", interval='5m', closed='left'))
+ .select(pl.col('StudentName','weekday','start','end','Time'))
+ .explode('Time')
+)
+```
+
+## Times to strings for visualization {.smaller}
+
+```{python}
+#| echo: true
+#| output-location: slide
+#| code-line-numbers: "5|5-10"
+class_day_time_df = (
+    sa_w_weekdays
+     .with_columns(Time=pl.time_ranges("start", "end", interval='5m', closed='left'))
+     .explode('Time')
+     .select(pl.col('Time').dt.strftime("%H:%M"),
+             pl.col('weekday').alias('Day'),
+             pl.col('Descr').alias('Class'),
+             pl.col('StudentName'),
+             pl.col('AdvisorName')
+            )
+)
+
+class_day_time_df
+```
+
+- Altair doesn't support the Polars "time" data type
+- Only keep the columns we'll need for the visualization
+    - Using the `.alias()` form in `.select()` since prefer this column order and can't put "positional" arguments after "keyword" ones
+
+## Lists for visualization {.smaller}
+
+:::: {.columns}
+
+::: {.column width="30%"}
+- Need an ordered list of times for the vis row ordering
+- List of weekday names sets the vis column order
+- List of advisors we will facet by
+:::
+
+::: {.column width="70%"}
+```{python}
+#| echo: true
+#| code-line-numbers: "1-8|10-14|16-22"
+times_list = (class_day_time_df
+ .get_column('Time')
+ .unique()
+ .sort()
+ .to_list()
+)
+# Look at a few entries...
+print(times_list[:5])
+
+# Sets the visualization column order
+if days_version.lower()=="abbreviation":
+    days_list = ['Mon', 'Tues', 'Wed', 'Thurs', 'Fri']
+else:
+    days_list = ['Monday','Tuesday','Wednesday','Thursday','Friday']
+
+advisors_list = (class_day_time_df
+ .get_column('AdvisorName')
+ .unique()
+ .sort()
+ .to_list()
+)
+print('There are', len(advisors_list), 'advisors')
+```
+
+:::
+
+::::
+
+# Visualization
+
+- Finally... :-)
+- Grouping and aggregation in Polars so:
+    - not too many data rows in Altair
+    - faster 
+        - Altair has built-in aggregation
+        - It's not very fast
+        - VegaFusion helps with this
+
+```{python}
+#| echo: false
+alt.renderers.enable('html');
+```
+
+## Using Altair for a single advisor {.smaller}
+
+```{python}
+#| classes: custom6040
+#| echo: true
+#| output-location: column
+advisor = advisors_list[1]
+print(advisor)
+```
+
+## Using Altair for a single advisor {.smaller}
+
+```{python}
+#| classes: custom6040
+#| echo: true
+#| output-location: column
+#| code-line-numbers: "2-6|"
+single_advisor_df = (
+  class_day_time_df
+    .filter(pl.col('AdvisorName') == advisor)
+    .group_by(pl.col('AdvisorName','Day','Time'))
+    .agg(Count=pl.col('Class').count(),
+         Students=pl.col('StudentName').str.join('; '))
+)
+
+single_advisor_df.select(
+    pl.all().exclude('AdvisorName')
+    )
+```
+
+## Using Altair for a single advisor {.smaller}
+
+```{python}
+#| classes: custom6040
+#| echo: true
+#| output-location: column
+single_advisor_df = (
+  class_day_time_df
+    .filter(pl.col('AdvisorName') == advisor)
+    .group_by(pl.col('AdvisorName','Day','Time'))
+    .agg(Count=pl.col('Class').count(),
+         Students=pl.col('StudentName').str.join('; '))
+)
+
+single_advisor_df.plot.rect(
+    x='Day',
+    y='Time',
+    color='Count',
+    tooltip=['Day','Time','Count','Students']
+)
+```
+
+## Using Altair for a single advisor {.smaller}
+
+```{python}
+#| classes: custom6040
+#| echo: true
+#| output-location: column
+single_advisor_df = (
+  class_day_time_df
+    .filter(pl.col('AdvisorName') == advisor)
+    .group_by(pl.col('AdvisorName','Day','Time'))
+    .agg(Count=pl.col('Class').count(),
+         Students=pl.col('StudentName').str.join('; '))
+)
+
+single_advisor_df.plot.rect(
+    x='Day:O',
+    y='Time:O',
+    color='Count:Q',
+    tooltip=['Day','Time','Count','Students']
+).properties(
+        width=180,
+        height=500
+)
+```
+
+## Using Altair for a single advisor {.smaller}
+
+```{python}
+#| classes: custom6040
+#| echo: true
+#| output-location: column
+(class_day_time_df
+    .filter(pl.col('AdvisorName') == advisor)
+    .group_by(pl.col('AdvisorName','Day','Time'))
+    .agg(Count=pl.col('Class').count(),
+         Students=pl.col('StudentName').str.join('; '))
+).plot.rect(
+    x='Day:O',
+    y='Time:O',
+    color='Count:Q',
+    tooltip=['Day','Time','Count','Students']
+).properties(
+        width=180,
+        height=500
+)
+```
+
+## Using Altair for a single advisor {.smaller}
+
+```{python}
+#| classes: custom6040
+#| echo: true
+#| output-location: column
+(class_day_time_df
+    .filter(pl.col('AdvisorName') == advisor)
+    .group_by(pl.col('AdvisorName','Day','Time'))
+    .agg(Count=pl.col('Class').count(),
+         Students=pl.col('StudentName').str.join('; '))
+    .plot.rect(
+        x='Day:O',
+        y='Time:O',
+        color='Count:Q',
+        tooltip=['Day','Time','Count','Students']
+    ).properties(
+            width=180,
+            height=500
+    )
+)
+```
+
+## Using Altair for a single advisor {.smaller}
+
+```{python}
+#| classes: custom6040
+#| echo: true
+#| output-location: column
+#| code-line-numbers: "7-9|7"
+(class_day_time_df
+    .filter(pl.col('AdvisorName') == advisor)
+    .group_by(pl.col('AdvisorName','Day','Time'))
+    .agg(Count=pl.col('Class').count(),
+         Students=pl.col('StudentName').str.join('; '))
+    .plot.rect(
+        x=alt.X('Day:O'),
+        y=alt.Y('Time:O'),
+        color=alt.Color('Count:Q'),
+        tooltip=['Day','Time','Count','Students']
+    ).properties(
+            width=180,
+            height=500
+    )
+)
+```
+
+## Using Altair for a single advisor {.smaller}
+
+```{python}
+#| classes: custom6040
+#| echo: true
+#| output-location: column
+#| code-line-numbers: "7-11|12"
+(class_day_time_df
+    .filter(pl.col('AdvisorName') == advisor)
+    .group_by(pl.col('AdvisorName','Day','Time'))
+    .agg(Count=pl.col('Class').count(),
+         Students=pl.col('StudentName').str.join('; '))
+    .plot.rect(
+        x=alt.X('Day:O', 
+            axis=alt.Axis(labelAngle=0),
+            sort=days_list, 
+            scale=alt.Scale(domain=days_list), 
+            title=''),
+        y=alt.Y('Time:O'),
+        color=alt.Color('Count:Q'),
+        tooltip=['Day','Time','Count','Students']
+    ).properties(
+            width=180,
+            height=500
+    )
+)
+```
+
+## Using Altair for a single advisor {.smaller}
+
+```{python}
+#| classes: custom6040
+#| echo: true
+#| output-location: column
+#| code-line-numbers: "12-15|16"
+(class_day_time_df
+    .filter(pl.col('AdvisorName') == advisor)
+    .group_by(pl.col('AdvisorName','Day','Time'))
+    .agg(Count=pl.col('Class').count(),
+         Students=pl.col('StudentName').str.join('; '))
+    .plot.rect(
+        x=alt.X('Day:O', 
+            axis=alt.Axis(labelAngle=0),
+            sort=days_list, 
+            scale=alt.Scale(domain=days_list), 
+            title=''),
+        y=alt.Y('Time:O', 
+            title='time of day', 
+            scale=alt.Scale(domain=times_list),
+            axis=alt.Axis(labelOverlap=True)),
+        color=alt.Color('Count:Q'),
+        tooltip=['Day','Time','Count','Students']
+    ).properties(
+            width=180,
+            height=500
+    )
+)
+```
+
+## Using Altair for a single advisor {.smaller}
+
+```{python}
+#| classes: custom6040
+#| echo: true
+#| output-location: column
+#| code-line-numbers: "16-18"
+(class_day_time_df
+    .filter(pl.col('AdvisorName') == advisor)
+    .group_by(pl.col('AdvisorName','Day','Time'))
+    .agg(Count=pl.col('Class').count(),
+         Students=pl.col('StudentName').str.join('; '))
+    .plot.rect(
+        x=alt.X('Day:O', 
+            axis=alt.Axis(labelAngle=0),
+            sort=days_list, 
+            scale=alt.Scale(domain=days_list), 
+            title=''),
+        y=alt.Y('Time:O', 
+            title='time of day', 
+            scale=alt.Scale(domain=times_list),
+            axis=alt.Axis(labelOverlap=True)),
+        color=alt.Color('Count:Q', 
+            scale=alt.Scale(scheme='blues'), 
+            legend=alt.Legend(title='# students')),
+        tooltip=['Day','Time','Count','Students']
+    ).properties(
+            width=180,
+            height=500
+    )
+)
+```
+
+## Using Altair for a single advisor {.smaller}
+
+```{python}
+#| classes: custom6040
+#| echo: true
+#| output-location: column
+#| code-line-numbers: "22|"
+(class_day_time_df
+    .filter(pl.col('AdvisorName') == advisor)
+    .group_by(pl.col('AdvisorName','Day','Time'))
+    .agg(Count=pl.col('Class').count(),
+         Students=pl.col('StudentName').str.join('; '))
+    .plot.rect(
+        x=alt.X('Day:O', 
+            axis = alt.Axis(labelAngle=0), # default vertical labels
+            sort=days_list, 
+            scale=alt.Scale(domain=days_list), title=''),
+        y=alt.Y('Time:O', 
+            title='time of day', 
+            scale=alt.Scale(domain=times_list),
+            axis=alt.Axis(labelOverlap=True)), # confusing naming
+        color=alt.Color('Count:Q', 
+            scale=alt.Scale(scheme='blues'), 
+            legend=alt.Legend(title='# students')),
+        tooltip=['Day','Time','Count','Students']
+    ).properties(
+        width=180,
+        height=500,
+        title=advisor
+    )
+)
+```
+
+
+## Faceted by advisor {.smaller}
+
+- Altair can visualize > 5000 rows, but makes you think about consequences
+    - [https://altair-viz.github.io/user_guide/large_datasets.html]()
+- Want VegaFusion for this since over 14,000 rows without filtering
+    - [https://vegafusion.io]()
+    - More efficient rendering
+    - Faster aggregation if using Altair for that
+- Filtering out "No Advisor" (gets the most counts) for better colormap range
+
+```{python}
+#| echo: true
+alt.data_transformers.enable("vegafusion")
+```
+
+## Faceted by advisor {.smaller}
+
+:::{.smallcode}
+
+```{python}
+#| echo: true
+#| output-location: slide
+#| code-line-numbers: "2,21-24"
+(class_day_time_df
+    .filter(pl.col('AdvisorName')!='No Advisor')
+    .group_by(pl.col('AdvisorName','Day','Time'))
+    .agg(Count=pl.col('Class').count(),
+         Students=pl.col('StudentName').str.join('; '))
+    .plot.rect(
+        x=alt.X('Day:O', 
+            axis = alt.Axis(labelAngle=0), 
+            sort=days_list, 
+            scale=alt.Scale(domain=tuple(days_list)), title=''),
+        y=alt.Y('Time:O', 
+            title='time of day', 
+            scale=alt.Scale(domain=times_list),
+            axis=alt.Axis(labelOverlap='parity')),
+        color=alt.Color('Count:Q', 
+            scale=alt.Scale(scheme='blues'), 
+            legend=alt.Legend(title='# students')),
+        tooltip=['Day','Time','Count','Students']
+    ).properties(
+        width=150, height=300, title=advisor
+    ).facet(
+        facet="AdvisorName",
+        columns=5
+    )
+)
+```
+
+:::
