@@ -16,16 +16,6 @@ center-title-slide: false
 
 Faculty need a quick way of summarizing busy and free times for the combination of students they advise
 
-
-```{python}
-#| output: false
-
-import polars as pl
-import altair as alt
-
-alt.renderers.enable('svg')
-```
-
 ## Where are we headed? {.smaller}
 
 :::: {.columns .custom6040}
@@ -48,6 +38,31 @@ alt.renderers.enable('svg')
 ![](images/TimeGridSample.png){width="300"}
 :::
 ::::
+
+## Typical import of modules {.smaller}
+
+```{python}
+#| echo: true
+
+import polars as pl
+import altair as alt
+```
+
+```{python}
+#| echo: false
+#| output: false
+
+alt.renderers.enable('svg')
+
+```
+
+## Preview student schedules {.smaller}
+
+```{python}
+#| echo: True
+
+pl.read_csv('./data/students_deidentified.csv', n_rows=5)
+```
 
 ## Preview student schedules {.smaller}
 
@@ -129,6 +144,7 @@ Two format options:
 )
 ```
 
+- We need formal `time` data type for later manipulation
 - `.str.to_time()` [[format options documentation](https://docs.rs/chrono/latest/chrono/format/strftime/index.html)] 
 - `%r` is 12-hr time with AM/PM
 
@@ -155,9 +171,9 @@ Two format options:
 
 Two format options:
 
-> `pl.col('name')` <- *Polars expression*\
+> `pl.col('name')` ← *Polars expression*\
 > *or* \
-> `'name'` <- *plain string shortcut*
+> `'name'` ← *plain string shortcut*
 
 - First more flexible – the basis for building complex expressions
 - First necessary for lazy evaluation, optimization, and parallel execution
@@ -178,7 +194,7 @@ advisors_df
 
 ```{python}
 #| echo: True
-#| code-line-numbers: "2|3|4|"
+#| code-line-numbers: "1-2|3|4|"
 #| output-location: fragment
 
 students_advisors_df = (
@@ -309,8 +325,10 @@ Images: Janssens, J., & Nieuwdorp, T. (2025). Python Polars: The Definitive Guid
 )
 ```
 
-- Get a separate group for each unique combination of the two
-- Unlike Pandas, `.group_by()` returns grouping variables as normal columns
+- Get a separate group for each unique combination of the two variables
+- Unlike Pandas
+    - `.group_by()` returns grouping variables as normal columns
+    - There is no `Index` in Polars DataFrames
 
 ## Aggregate by count of ID {.smaller}
 
@@ -339,6 +357,19 @@ Images: Janssens, J., & Nieuwdorp, T. (2025). Python Polars: The Definitive Guid
 
 - Ascending sort order is the default
 - *Note: Pandas is opposite for descending: `ascending=False`*
+
+## Some classes have no start time {.smaller}
+
+```{python}
+#| echo: True
+(students_advisors_df
+ .filter(pl.col('start').is_null())
+ .group_by(pl.col('Subject','Descr'))
+ .agg(count = pl.col('StudentID').count())
+ .sort('count', descending=True)
+)
+```
+
 
 <!-- ## Dealing with days of the week {.smaller}
 
@@ -369,7 +400,7 @@ from great_tables import loc, style
 - Need to spell out days of the week for the vis
 - One day per row in the DataFrame
 
-## Aside: styling with `great_tables` {.smaller}
+## *Aside: styling with `great_tables`* {.smaller}
 
 ```{python}
 #| echo: true
@@ -537,7 +568,7 @@ sa_w_weekdays.select(pl.col('StudentName','Descr','Pat','weekday'))
 )
 ```
 
-## Times to strings for visualization {.smaller}
+## Time back to string for visualization {.smaller}
 
 ```{python}
 #| echo: true
@@ -604,15 +635,15 @@ print('There are', len(advisors_list), 'advisors')
 
 ::::
 
-# Visualization
+## Visualization
 
-- Finally... :-)
-- Grouping and aggregation in Polars so:
+- Finally!\ \ :-)
+- Grouping and aggregation done in Polars so:
     - not too many data rows in Altair
     - faster 
         - Altair has built-in aggregation
         - It's not very fast
-        - VegaFusion helps with this
+        - VegaFusion helps with this + number of rows
 
 ```{python}
 #| echo: false
@@ -895,7 +926,7 @@ single_advisor_df.plot.rect(
 
 - Altair can visualize > 5000 rows, but makes you think about consequences
     - [https://altair-viz.github.io/user_guide/large_datasets.html]()
-- Want VegaFusion for this since over 14,000 rows without filtering
+- Using VegaFusion for this since over 14,000 rows without filtering
     - [https://vegafusion.io]()
     - More efficient rendering
     - Faster aggregation if using Altair for that
