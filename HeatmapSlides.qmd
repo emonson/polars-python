@@ -1,8 +1,12 @@
 ---
-title: Visualize combined student schedules for each advisor
-subtitle: Solving problems with Polars and Altair
+title: Visualizing student schedules
+subtitle: Case study in solving problems with Polars and Altair
+author: Eric Monson, PhD
+institute: Duke University Libraries<br>
+    Center for Data and Visualization Sciences
 format:
     revealjs: 
+        center-title-slide: true
         slide-number: true
         preview-links: auto
         css: styles.css
@@ -12,9 +16,13 @@ scrollable: true
 center-title-slide: false
 ---
 
-# Advisor Student Heatmaps
+## Advisor Student Heatmaps
 
-Faculty need a quick way of summarizing busy and free times for the combination of students they advise
+> Faculty need a quick way of summarizing busy and free times for the group of students they advise
+
+- This ends up being a nice case study for using basic Polars
+- Along the way I'll review syntax and contrast with Pandas
+
 
 ## Where are we headed? {.smaller}
 
@@ -28,14 +36,14 @@ Faculty need a quick way of summarizing busy and free times for the combination 
 ::: {.fragment}
 **Students' advisors**
 
-![](images/StudentAdvisorSample.png){width="400"}
+![](images/StudentAdvisorSample.png){width="380"}
 :::
 :::
 
 ::: {.column .fragment}
 **All schedules/advisor**
 
-![](images/TimeGridSample.png){width="300"}
+![](images/TimeGridSample.png){width="285"}
 :::
 ::::
 
@@ -189,6 +197,13 @@ advisors_df
 
 ## JOIN students and advisors {.smaller}
 
+- JOIN on StudentID
+- StudentName is in both DataFrames so can drop one of them
+- Filling null AdvisorName with placeholder string
+
+## JOIN students and advisors {.smaller}
+
+- JOIN on StudentID
 - StudentName is in both DataFrames so can drop one of them
 - Filling null AdvisorName with placeholder string
 
@@ -544,8 +559,14 @@ sa_w_weekdays.select(pl.col('StudentName','Descr','Pat','weekday'))
 - Make list of times between "start" and "end"
 - Decided to set `closed='left'` so don't include the end time in list
 
+## Test `time_ranges()` {.smaller}
+
+- Make list of times between "start" and "end"
+- Decided to set `closed='left'` so don't include the end time in list
+
 ```{python}
 #| echo: true
+#| output-location: fragment
 
 (sa_w_weekdays
  .with_columns(Time=pl.time_ranges("start", "end", interval='5m', closed='left'))
@@ -643,14 +664,14 @@ print('There are', len(advisors_list), 'advisors')
     - faster 
         - Altair has built-in aggregation
         - It's not very fast
-        - VegaFusion helps with this + number of rows
+        - VegaFusion helps with speed + number of rows issue
 
 ```{python}
 #| echo: false
 alt.renderers.enable('html');
 ```
 
-## Using Altair for a single advisor {.smaller}
+## Start with a single advisor {.smaller}
 
 ```{python}
 #| classes: custom6040
@@ -660,13 +681,14 @@ advisor = advisors_list[1]
 print(advisor)
 ```
 
-## Using Altair for a single advisor {.smaller}
+## DataFrame for a single advisor {.smaller}
 
 ```{python}
 #| classes: custom6040
 #| echo: true
-#| output-location: column
+#| output-location: column-fragment
 #| code-line-numbers: "2-6|"
+
 single_advisor_df = (
   class_day_time_df
     .filter(pl.col('AdvisorName') == advisor)
@@ -921,21 +943,29 @@ single_advisor_df.plot.rect(
 )
 ```
 
-
 ## Faceted by advisor {.smaller}
 
+::: {.fragment}
 - Altair can visualize > 5000 rows, but makes you think about consequences
     - [https://altair-viz.github.io/user_guide/large_datasets.html]()
-- Using VegaFusion for this since over 14,000 rows without filtering
+:::
+::: {.fragment}
+- Using **VegaFusion** for this since over 14,000 rows without filtering
     - [https://vegafusion.io]()
     - More efficient rendering
     - Faster aggregation if using Altair for that
-- Filtering out "No Advisor" (gets the most counts) for better colormap range
-
+:::
+::: {.fragment}
 ```{python}
 #| echo: true
 alt.data_transformers.enable("vegafusion")
 ```
+:::
+::: {.fragment}
+- Filtering out "No Advisor" (gets the most counts) for better colormap range
+:::
+
+
 
 ## Faceted by advisor {.smaller}
 
