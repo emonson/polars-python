@@ -11,6 +11,6 @@ but they have not been properly documented for Polars
 
 ### CDVS workshop – Fall 2025
 
-- Slides: [HeatmapSlides.html]()
-- Code notebook: [AdvisorStudentHeatmaps.ipynb]()
+- Slides: [HeatmapSlides.html](HeatmapSlides.html)
+- Code notebook: [AdvisorStudentHeatmaps.ipynb](AdvisorStudentHeatmaps.ipynb)
 
