@@ -72,29 +72,25 @@ alt.renderers.enable('svg')
 pl.read_csv('./data/students_deidentified.csv', n_rows=5)
 ```
 
-## Preview student schedules {.smaller}
-
+::: {.incremental}
 - Polars only supports UTF-8 text encoding for fast reads
 - Not doing a lazy read/DataFrame here since the files aren't big
-- "Mtg Start" and "Mtg End" look like times but are strings
-- **If the IDs are only integers, force them to be read as a strings to not lose leading zeros**
-
-```{python}
-#| echo: True
-
-pl.read_csv('./data/students_deidentified.csv', n_rows=5)
-```
+- "Mtg Start" and "Mtg End" look like times but are strings right now
+- **If the IDs were integers we'd force them to be read as a strings <br>to not lose any leading zeros**
+:::
 
 ## Full CSV read w/time conversion {.smaller}
 
 ```{python}
 #| echo: True
+#| code-line-numbers: 1-5
 
 students_df = (pl.read_csv('./data/students_deidentified.csv')
                 .with_columns(start=pl.col('Mtg Start').str.to_time('%r'),
                                 end=pl.col('Mtg End').str.to_time('%r'))
                 .drop(pl.col('Mtg Start','Mtg End'))
            )
+
 print('Full DataFrame shape:', students_df.shape)
 students_df.head(10)
 ```
@@ -199,13 +195,9 @@ advisors_df
 
 - JOIN on StudentID
 - StudentName is in both DataFrames so can drop one of them
-- Filling null AdvisorName with placeholder string
+- Filling *null* AdvisorName with placeholder string
 
-## JOIN students and advisors {.smaller}
-
-- JOIN on StudentID
-- StudentName is in both DataFrames so can drop one of them
-- Filling null AdvisorName with placeholder string
+::: {.fragment}
 
 ```{python}
 #| echo: True
@@ -219,6 +211,8 @@ students_advisors_df = (
          )
 students_advisors_df.sample(10)
 ```
+
+:::
 
 ## Some students have no advisor {.smaller}
 
@@ -412,8 +406,8 @@ from great_tables import loc, style
 )
 ```
 
-- Need to spell out days of the week for the vis
-- One day per row in the DataFrame
+- Need to spell out days of the week for the visualization
+- One day per row in the DataFrame for aggregation
 
 ## *Aside: styling with `great_tables`* {.smaller}
 
@@ -501,6 +495,7 @@ import re
 ```{python}
 #| echo: true
 #| output-location: slide
+#| code-line-numbers: 4-6|8-12|14-24
 # days_version = "full"
 days_version = "abbreviation"
 
@@ -508,7 +503,7 @@ days_letters = ['M', 'T', 'W', 'H', 'F']
 days_list_full = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 days_list_abbrev = ['Mon', 'Tues', 'Wed', 'Thurs', 'Fri']
 
-# Using Pandas Series since you can use slice notation on them for day ranges with dashes
+# Using Pandas Series so can use slice notation on day ranges with dashes
 if days_version.lower() == "full":
     classdays_series = pd.Series(dict(zip(days_letters, days_list_full)))
 else:
