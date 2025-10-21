@@ -1,5 +1,16 @@
 # polars-python
 
-Right now this is just a placeholder repository. The notebooks are mostly old Pandas code that's been
-worked over to translate into Polars, but they have not been properly documented for Polars.
-Almost all of the markdown is still for the old Pandas content.
+*Except for the workshop materials listed below, 
+right now this is mostly a work-in-progress repository. 
+Many of the notebooks are old Pandas code that's been
+translated into Polars code cells as a test, 
+but they have not been properly documented for Polars
+(meaning much of the markdown is still for the old Pandas content).*
+
+## Visualizing with Polars + Altair in Python: a case study
+
+### CDVS workshop – Fall 2025
+
+- Slides: [HeatmapSlides.html]()
+- Code notebook: [AdvisorStudentHeatmaps.ipynb]()
+
