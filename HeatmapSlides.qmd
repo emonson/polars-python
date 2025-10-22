@@ -20,7 +20,7 @@ center-title-slide: false
 
 > Faculty need a quick way of summarizing busy and free times for the group of students they advise
 
-- This ends up being a nice case study for using basic Polars
+- This ends up being a nice case study for using basic Polars<br>+ visualization with Altair (the default plot module)
 - Along the way I'll review syntax and contrast with Pandas
 
 
@@ -119,6 +119,17 @@ students_df.head(10)
 ```
 - `.with_columns()` – adds new or modifies existing columns
 
+## Adding new columns {.smaller}
+
+```{.python .bigcode code-line-numbers="2-3"}
+(pl.read_csv('./data/students_deidentified.csv')
+    .with_columns(pl.col('Mtg Start').str.to_time('%r').alias('start'),
+                  end=pl.col('Mtg End').str.to_time('%r'))
+    .drop(pl.col('Mtg Start','Mtg End'))
+)
+```
+- `.with_columns()` – adds new or modifies existing columns
+
 ## Naming your new columns {.smaller}
 
 ```{.python .bigcode code-line-numbers="2-3"}
@@ -150,7 +161,7 @@ Two format options:
 
 - We need formal `time` data type for later manipulation
 - `.str.to_time()` [[format options documentation](https://docs.rs/chrono/latest/chrono/format/strftime/index.html)] 
-- `%r` is 12-hr time with AM/PM
+- `%r` is 12-hour time with AM/PM
 
 ## Dropping unnecessary columns {.smaller}
 
@@ -213,6 +224,8 @@ students_advisors_df.sample(10)
 ```
 
 :::
+
+# Exporatory aside
 
 ## Some students have no advisor {.smaller}
 
@@ -392,6 +405,8 @@ students_advisors_df.head(10)
 
 - Need to spell out days of the week for the vis
 - With one day per row in the DataFrame -->
+
+# Back to data prep
 
 ## Dealing with days of the week {.smaller}
 
@@ -589,7 +604,7 @@ sa_w_weekdays.select(pl.col('StudentName','Descr','Pat','weekday'))
 ```{python}
 #| echo: true
 #| output-location: slide
-#| code-line-numbers: "5|5-10"
+#| code-line-numbers: "2-4|5|5-10"
 class_day_time_df = (
     sa_w_weekdays
      .with_columns(Time=pl.time_ranges("start", "end", interval='5m', closed='left'))
@@ -651,6 +666,8 @@ print('There are', len(advisors_list), 'advisors')
 
 ::::
 
+# Visualization
+
 ## Visualization
 
 - Finally!\ \ :-)
@@ -665,6 +682,14 @@ print('There are', len(advisors_list), 'advisors')
 #| echo: false
 alt.renderers.enable('html');
 ```
+
+## 
+
+![](images/AltairHomePage.png){}
+
+::: {.footer}
+[https://altair-viz.github.io]()
+:::
 
 ## Start with a single advisor {.smaller}
 
@@ -998,3 +1023,8 @@ alt.data_transformers.enable("vegafusion")
 ```
 
 :::
+
+# Thanks!
+
+- Questions: askdata@duke.edu
+- Repo: [https://github.com/emonson/polars-python/]()
