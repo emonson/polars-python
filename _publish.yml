@@ -1,0 +1,4 @@
+- source: HeatmapSlides.qmd
+  quarto-pub:
+    - id: 1118baa4-8fa3-4640-a614-550b8e180394
+      url: https://emonson.quarto.pub/visualizing-student-schedules-a172
