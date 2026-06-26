@@ -11,6 +11,7 @@ but they have not been properly documented for Polars
 
 ### CDVS workshop – Fall 2025
 
-- Slides: [HeatmapSlides.html](HeatmapSlides.html)
+- Slides HTML file: [HeatmapSlides.html](HeatmapSlides.html)
+- Slides web version: [Quarto web slides](https://emonson.quarto.pub/visualizing-student-schedules-a172)
 - Code notebook: [AdvisorStudentHeatmaps.ipynb](AdvisorStudentHeatmaps.ipynb)
 
