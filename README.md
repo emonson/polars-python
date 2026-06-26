@@ -9,6 +9,8 @@ but they have not been properly documented for Polars
 
 ## Visualizing with Polars + Altair in Python: a case study
 
+Altair is the default visualization module if you're using Polars for data manipulation in Python. This will be a short case study presentation of how I used that combination of modules to solve a visualization problem. I'll start with a brief overview of the relevant Polars and Altair concepts and syntax, and then present an example where faculty in Engineering needed to visualize when the students they were advising were busy or had gaps in their combined schedules. The intent is to go beyond a typical example you'd see in a tutorial to see how someone used both Polars and Altair to solve a real-world problem.
+
 ### CDVS workshop – Fall 2025
 
 - Slides HTML file: [HeatmapSlides.html](HeatmapSlides.html)
